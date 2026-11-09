@@ -1,0 +1,6 @@
+{
+  "name": "Vapi Voice AI Orchestrator & Campaign Manager",
+  "description": "Enterprise Vapi voice assistant management, campaign dialer with live call monitoring, real-time analytics, RBAC, Supabase sync, and Docker deployment.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
