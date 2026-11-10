@@ -24,12 +24,12 @@ export const BlueSpiderLogo: React.FC<BlueSpiderLogoProps> = ({
     lg: 'w-12 h-12',
   };
 
-  const imageSrc = '/src/assets/images/bluespider_logo_1794208119224.jpg';
+  const imageSrc = '/logo_blue_spider.png';
 
   return (
     <div className={`flex items-center gap-3 shrink-0 ${className}`}>
       <div
-        className={`${sizeClasses[size]} relative rounded-xl overflow-hidden bg-slate-900 border border-cyan-500/30 shadow-md shadow-cyan-950/50 flex items-center justify-center shrink-0 group transition-transform duration-300 hover:scale-105`}
+        className={`${sizeClasses[size]} relative rounded-xl overflow-hidden bg-sky-950/80 border border-sky-400/50 shadow-md shadow-sky-950/60 flex items-center justify-center shrink-0 group transition-transform duration-300 hover:scale-105`}
       >
         {!imageError ? (
           <img
@@ -41,7 +41,7 @@ export const BlueSpiderLogo: React.FC<BlueSpiderLogoProps> = ({
         ) : (
           /* High-fidelity Cyber Spider SVG Fallback */
           <svg
-            className="w-5 h-5 text-cyan-400"
+            className="w-5 h-5 text-sky-400"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -66,21 +66,21 @@ export const BlueSpiderLogo: React.FC<BlueSpiderLogoProps> = ({
             <circle cx="12" cy="14" r="1.2" fill="#38bdf8" />
           </svg>
         )}
-        <div className="absolute inset-0 ring-1 ring-inset ring-cyan-400/20 rounded-xl pointer-events-none" />
+        <div className="absolute inset-0 ring-1 ring-inset ring-sky-400/30 rounded-xl pointer-events-none" />
       </div>
 
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span className="text-base font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-cyan-200 to-sky-400 bg-clip-text text-transparent whitespace-nowrap">
+            <span className="text-base font-extrabold tracking-tight bg-gradient-to-r from-white via-sky-200 to-sky-400 bg-clip-text text-transparent whitespace-nowrap">
               BlueSpider
             </span>
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-800 text-cyan-300">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-600/80 text-sky-300">
               AI DIALER
             </span>
           </div>
           <span className="text-[10px] font-mono text-slate-400 leading-tight">
-            Vapi Voice Intelligence Platform
+            Autonomous Voice AI Platform
           </span>
         </div>
       )}

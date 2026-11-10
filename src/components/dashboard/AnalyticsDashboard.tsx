@@ -26,7 +26,7 @@ interface AnalyticsDashboardProps {
   recentCalls: CallLog[];
   onSelectCall: (call: CallLog) => void;
   onNavigateTab: (tab: string) => void;
-  onStartCampaign: (id: string) => Promise<void>;
+  onStartCampaign: (id: string) => Promise<any>;
   onPauseCampaign: (id: string) => Promise<void>;
 }
 
@@ -114,7 +114,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             BlueSpider AI Dialer · Real-Time Operations
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Enterprise batch campaign dispatch, sub-500ms voice monitoring, and bidirectional Vapi &amp; Supabase synchronization.
+            Enterprise batch campaign dispatch, sub-500ms voice monitoring, and autonomous cloud telephony synchronization.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -126,7 +126,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </button>
           <button
             onClick={() => onNavigateTab('monitor')}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors cursor-pointer"
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-lg shadow-sm transition-colors cursor-pointer"
           >
             Open Live Monitor
           </button>

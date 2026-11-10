@@ -158,14 +158,14 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
         <div className={`${selectedCall ? 'lg:col-span-2' : 'lg:col-span-3'} p-5 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-4`}>
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>Showing {filteredCalls.length} call records</span>
-            <span className="font-mono">Mirrored across Vapi & Supabase</span>
+            <span className="font-mono text-sky-400/80">Synchronized Cloud Records</span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                  <th className="py-2.5 px-3">Call ID / Vapi</th>
+                  <th className="py-2.5 px-3">Call ID / Engine</th>
                   <th className="py-2.5 px-3">Customer / Phone</th>
                   <th className="py-2.5 px-3">Campaign</th>
                   <th className="py-2.5 px-3">Assistant</th>
@@ -189,10 +189,10 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
                       key={call.id ? `call-${call.id}-${idx}` : `call-${idx}`}
                       onClick={() => onSelectCall(call)}
                       className={`hover:bg-slate-800/40 cursor-pointer transition-colors ${
-                        isSelected ? 'bg-indigo-950/40 border-l-2 border-indigo-500' : ''
+                        isSelected ? 'bg-sky-950/40 border-l-2 border-sky-400' : ''
                       }`}
                     >
-                      <td className="py-3 px-3 text-indigo-300 font-semibold truncate max-w-[110px]">
+                      <td className="py-3 px-3 text-sky-300 font-semibold truncate max-w-[110px]">
                         {call.vapiCallId}
                       </td>
                       <td className="py-3 px-3 text-slate-200 font-sans">
@@ -251,7 +251,7 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-xl space-y-5 animate-in fade-in">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
-                <span className="text-[10px] font-mono uppercase text-indigo-400">
+                <span className="text-[10px] font-mono uppercase text-sky-400">
                   Call Telemetry Inspector
                 </span>
                 <h3 className="text-sm font-bold text-slate-100 truncate">
@@ -270,7 +270,7 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
             <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Mic className="w-3.5 h-3.5 text-indigo-400" />
+                  <Mic className="w-3.5 h-3.5 text-sky-400" />
                   Dual-Channel Audio Recording
                 </span>
                 <span className="text-[10px] font-mono text-emerald-400">48kHz STEREO</span>
@@ -284,7 +284,7 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
                       key={idx}
                       style={{ height: `${val}%` }}
                       className={`w-1 rounded-full transition-all ${
-                        isPlayingAudio ? 'bg-indigo-400 animate-pulse' : 'bg-slate-700'
+                        isPlayingAudio ? 'bg-sky-400 animate-pulse' : 'bg-slate-700'
                       }`}
                     ></div>
                   )
@@ -294,7 +294,7 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
               <div className="flex items-center justify-between pt-1">
                 <button
                   onClick={togglePlayAudio}
-                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded cursor-pointer"
                 >
                   {isPlayingAudio ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
                   <span>{isPlayingAudio ? 'Pause' : 'Play Audio'}</span>
@@ -308,7 +308,7 @@ export const CallLogsView: React.FC<CallLogsViewProps> = ({
 
             {/* AI Summary */}
             <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800 space-y-1">
-              <span className="text-[10px] font-semibold text-indigo-400 uppercase tracking-wider">
+              <span className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider">
                 Automated AI Summary
               </span>
               <p className="text-xs text-slate-300 leading-relaxed font-sans">

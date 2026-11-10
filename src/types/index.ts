@@ -92,6 +92,7 @@ export interface CampaignContact {
   variables: Record<string, string>;
   status: 'pending' | 'calling' | 'completed' | 'failed' | 'voicemail' | 'no-answer' | 'busy';
   callId?: string;
+  vapiCallId?: string;
   callDurationSeconds?: number;
   callOutcome?: string;
   lastAttemptAt?: string;
@@ -159,7 +160,18 @@ export interface CallLog {
     tts: number;
     vapi: number;
   };
-  endReason: 'customer-ended-call' | 'assistant-ended-call' | 'silence-timeout' | 'max-duration' | 'voicemail' | 'failed' | 'busy';
+  endReason:
+    | 'customer-ended-call'
+    | 'assistant-ended-call'
+    | 'silence-timeout'
+    | 'max-duration'
+    | 'voicemail'
+    | 'failed'
+    | 'busy'
+    | 'in-progress'
+    | 'operator-ended-call'
+    | 'cleared-by-operator'
+    | string;
   transcript: TranscriptMessage[];
   recordingUrl?: string;
   analysis: {

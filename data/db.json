@@ -649,7 +649,7 @@
       "customerName": "Zoel",
       "phoneNumber": "+622130200145",
       "type": "outboundPhoneCall",
-      "status": "in-progress",
+      "status": "ended",
       "startedAt": "2026-11-09T07:41:44.581Z",
       "durationSeconds": 15,
       "cost": 0.05,
@@ -685,7 +685,8 @@
         "ttsLatencyMs": 190
       },
       "syncedToVapi": true,
-      "syncedToSupabase": true
+      "syncedToSupabase": true,
+      "endedAt": "2026-11-10T04:28:44.831Z"
     },
     {
       "id": "call-log-1794210104557-943",
@@ -698,7 +699,7 @@
       "customerName": "Ivan Setiawan",
       "phoneNumber": "+622130200145",
       "type": "outboundPhoneCall",
-      "status": "in-progress",
+      "status": "ended",
       "startedAt": "2026-11-09T07:41:44.557Z",
       "durationSeconds": 15,
       "cost": 0.05,
@@ -734,7 +735,8 @@
         "ttsLatencyMs": 190
       },
       "syncedToVapi": true,
-      "syncedToSupabase": true
+      "syncedToSupabase": true,
+      "endedAt": "2026-11-10T04:28:44.831Z"
     },
     {
       "id": "call-019cfa2f-5b16-7ccf-a0bc-6dc5e6e91ef7",

@@ -48,6 +48,7 @@ function AppContent() {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | undefined>();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Initial Data Fetch
   const loadAllData = async () => {
@@ -271,20 +272,45 @@ function AppContent() {
 
   // Call End / Hangup Handler
   const handleEndCall = async (callId: string) => {
-    // Find call and wrap it up
-    const target = calls.find((c) => c.id === callId);
-    if (target) {
-      target.status = 'ended';
-      target.endedAt = new Date().toISOString();
-      setCalls([...calls]);
-      // If associated with a campaign contact, complete it
-      if (target.campaignId) {
-        const camp = campaigns.find((c) => c.id === target.campaignId);
-        const contact = camp?.contacts.find((c) => c.callId === callId || c.phone === target.customerPhone);
-        if (camp && contact) {
-          await api.completeContactCall(camp.id, contact.id, 'Session ended by operator', 'completed', target.durationSeconds);
-        }
-      }
+    try {
+      await api.endCall(callId);
+      await loadAllData();
+      setSyncFeedback('Call wrapped up');
+      setTimeout(() => setSyncFeedback(undefined), 3000);
+    } catch (err: any) {
+      console.error('Failed to end call:', err);
+      // Local fallback
+      setCalls((prev) =>
+        prev.map((c) => (c.id === callId ? { ...c, status: 'ended', endedAt: new Date().toISOString() } : c))
+      );
+    }
+  };
+
+  // Clear Stale / Inactive Lines
+  const handleClearStaleCalls = async () => {
+    try {
+      setSyncFeedback('Clearing inactive lines...');
+      const res = await api.clearStaleCalls();
+      await loadAllData();
+      setSyncFeedback(res.message || 'Inactive lines cleared');
+      setTimeout(() => setSyncFeedback(undefined), 3500);
+    } catch (err: any) {
+      setSyncFeedback(`Clear error: ${err.message}`);
+      setTimeout(() => setSyncFeedback(undefined), 4000);
+    }
+  };
+
+  // Sync Active Calls from Vapi
+  const handleSyncActiveCalls = async () => {
+    try {
+      setSyncFeedback('Querying live call telemetry...');
+      const res = await api.syncActiveCalls();
+      await loadAllData();
+      setSyncFeedback(res.updatedCount > 0 ? `Synced ${res.updatedCount} active call(s)` : 'Active lines verified');
+      setTimeout(() => setSyncFeedback(undefined), 3500);
+    } catch (err: any) {
+      setSyncFeedback(`Sync error: ${err.message}`);
+      setTimeout(() => setSyncFeedback(undefined), 4000);
     }
   };
 
@@ -333,17 +359,21 @@ function AppContent() {
         syncMessage={syncFeedback}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        isMobileMenuOpen={isMobileMenuOpen}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
 
-      {/* Main Body with Sidebar + Content */}
-      <div className="flex flex-1">
+      {/* Main Body with Responsive Sidebar + Content */}
+      <div className="flex flex-1 relative min-h-0">
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           unreadCallsCount={activeCalls.length}
+          isMobileOpen={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
 
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl">
+        <main className="flex-1 p-3 sm:p-5 md:p-8 overflow-y-auto max-w-7xl w-full min-w-0">
           {activeTab === 'dashboard' && (
             <AnalyticsDashboard
               analytics={analytics}
@@ -404,6 +434,8 @@ function AppContent() {
             <LiveCallMonitor
               activeCalls={activeCalls}
               onEndCall={handleEndCall}
+              onClearStaleCalls={handleClearStaleCalls}
+              onSyncActiveCalls={handleSyncActiveCalls}
               onTriggerSimulatedCall={() => setIsSimulatorOpen(true)}
               onSelectCall={(c) => {
                 setSelectedCall(c);

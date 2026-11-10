@@ -289,6 +289,33 @@ export async function fetchCallById(id: string): Promise<CallLog> {
   return data.call;
 }
 
+export async function endCall(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/calls/${id}/end`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to end call');
+  return res.json();
+}
+
+export async function clearStaleCalls(): Promise<{ success: boolean; clearedCount: number; message: string }> {
+  const res = await fetch(`${API_BASE}/calls/clear-stale`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to clear inactive lines');
+  return res.json();
+}
+
+export async function syncActiveCalls(): Promise<{ success: boolean; updatedCount: number; activeCalls: CallLog[] }> {
+  const res = await fetch(`${API_BASE}/calls/sync-active`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to sync active call status');
+  return res.json();
+}
+
 export async function fetchAnalytics(): Promise<CallAnalytics> {
   const res = await fetch(`${API_BASE}/analytics`);
   if (!res.ok) throw new Error('Failed to fetch analytics');

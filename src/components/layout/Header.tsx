@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { PhoneCall, Shield, RefreshCw, CheckCircle2, AlertCircle, ChevronDown, UserCircle } from 'lucide-react';
+import { PhoneCall, Shield, RefreshCw, CheckCircle2, AlertCircle, ChevronDown, UserCircle, Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import type { UserRole } from '../../types/index.ts';
 import { BlueSpiderLogo } from './BlueSpiderLogo.tsx';
@@ -16,6 +16,8 @@ interface HeaderProps {
   syncMessage?: string;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  isMobileMenuOpen?: boolean;
+  onToggleMobileMenu?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,12 +27,14 @@ export const Header: React.FC<HeaderProps> = ({
   syncMessage,
   activeTab,
   setActiveTab,
+  isMobileMenuOpen = false,
+  onToggleMobileMenu,
 }) => {
   const { currentUser, role, switchRole } = useAuth();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   const roleLabels: Record<UserRole, { label: string; color: string }> = {
-    super_admin: { label: 'Super Admin', color: 'text-cyan-400 bg-cyan-950/60 border-cyan-800' },
+    super_admin: { label: 'Super Admin', color: 'text-sky-400 bg-sky-950/60 border-sky-800' },
     campaign_manager: { label: 'Campaign Manager', color: 'text-emerald-400 bg-emerald-950/60 border-emerald-800' },
     analyst: { label: 'Data Analyst', color: 'text-amber-400 bg-amber-950/60 border-amber-800' },
     viewer: { label: 'Auditor / Viewer', color: 'text-slate-400 bg-slate-900 border-slate-700' },
@@ -39,27 +43,38 @@ export const Header: React.FC<HeaderProps> = ({
   const navLinks = [
     { id: 'dashboard', label: 'Analytics' },
     { id: 'assistants', label: 'Voice Assistants' },
+    { id: 'phone-numbers', label: 'Phone Lines' },
     { id: 'campaigns', label: 'Campaigns' },
     { id: 'monitor', label: 'Live Monitor' },
     { id: 'logs', label: 'Call Records' },
   ];
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between gap-8 px-6 py-3 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80">
-      {/* Zone 1: Single text element wordmark with BlueSpider Logo */}
-      <div className="flex items-center gap-3 shrink-0">
+    <header className="sticky top-0 z-40 flex items-center justify-between gap-3 sm:gap-6 px-3 sm:px-6 py-2.5 sm:py-3 bg-slate-950/95 backdrop-blur-md border-b border-slate-850">
+      {/* Zone 1: Mobile hamburger + BlueSpider Logo */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {onToggleMobileMenu && (
+          <button
+            onClick={onToggleMobileMenu}
+            className="lg:hidden p-1.5 sm:p-2 text-slate-300 hover:text-white bg-slate-900/90 border border-slate-800 rounded-lg cursor-pointer transition-colors"
+            title="Toggle Menu"
+            aria-label="Toggle navigation menu"
+          >
+            {isMobileMenuOpen ? <X className="w-4 h-4 text-sky-400" /> : <Menu className="w-4 h-4 text-sky-400" />}
+          </button>
+        )}
         <BlueSpiderLogo size="sm" showText={true} />
       </div>
 
-      {/* Zone 2: Concise single-line text navigation links */}
-      <nav className="hidden lg:flex items-center gap-6 text-xs font-medium text-slate-400">
+      {/* Zone 2: Desktop single-line text navigation links */}
+      <nav className="hidden lg:flex items-center gap-5 xl:gap-6 text-xs font-medium text-slate-400">
         {navLinks.map((link) => (
           <button
             key={link.id}
             onClick={() => setActiveTab(link.id)}
             className={`transition-colors whitespace-nowrap shrink-0 py-1 cursor-pointer ${
               activeTab === link.id
-                ? 'text-cyan-400 font-semibold border-b-2 border-cyan-500'
+                ? 'text-sky-400 font-semibold border-b-2 border-sky-400'
                 : 'hover:text-slate-200'
             }`}
           >
@@ -69,25 +84,25 @@ export const Header: React.FC<HeaderProps> = ({
       </nav>
 
       {/* Zone 3: Primary action + RBAC selector */}
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Sync Button */}
         <button
           onClick={() => onSyncVapi()}
           disabled={isSyncing}
-          title={syncMessage || 'Sync state with Vapi API'}
+          title={syncMessage || 'Sync state with Cloud Engine'}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-300 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline whitespace-nowrap">Sync Vapi</span>
+          <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span className="hidden md:inline whitespace-nowrap">Cloud Sync</span>
         </button>
 
         {/* Primary CTA: Launch Test Voice Call */}
         <button
           onClick={onOpenSimulator}
-          className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-lg shadow-sm shadow-cyan-950 transition-all cursor-pointer whitespace-nowrap shrink-0"
+          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-sky-400 hover:bg-sky-300 rounded-lg shadow-sm shadow-sky-950 transition-all cursor-pointer whitespace-nowrap shrink-0"
         >
           <PhoneCall className="w-3.5 h-3.5" />
-          <span>Test Assistant Call</span>
+          <span className="hidden sm:inline">Test Call</span>
         </button>
 
         {/* RBAC Role Switcher & User Pill */}

@@ -1414,8 +1414,28 @@ app.post('/api/campaigns/:id/contacts/:contactId/complete', (req, res) => {
 });
 
 // 7. Call Logs & Real-Time Analytics
-app.get('/api/calls', (req, res) => {
+app.get('/api/calls', async (req, res) => {
   const db = readDB();
+  let needsDbSave = false;
+
+  // Auto-expire stale in-progress calls older than 15 minutes or mock IDs
+  const now = Date.now();
+  for (const call of db.callLogs) {
+    if (call.status === 'in-progress' || call.status === 'ringing' || call.status === 'queued') {
+      const ageMs = now - new Date(call.startedAt || 0).getTime();
+      if (ageMs > 15 * 60 * 1000 || call.vapiCallId.startsWith('vapi-call-') || call.vapiCallId.startsWith('vapi-sim-')) {
+        call.status = 'ended';
+        call.endedAt = call.endedAt || new Date().toISOString();
+        call.endReason = call.endReason || 'session-timeout';
+        needsDbSave = true;
+      }
+    }
+  }
+
+  if (needsDbSave) {
+    writeDB(db);
+  }
+
   const { campaignId, assistantId, status, sentiment, search } = req.query;
 
   let filtered = [...db.callLogs];
@@ -1455,6 +1475,128 @@ app.get('/api/calls/:id', (req, res) => {
   const call = db.callLogs.find((c) => c.id === id || c.vapiCallId === id);
   if (!call) return res.status(404).json({ error: 'Call log not found' });
   res.json({ call });
+});
+
+// Sync active calls status directly from Vapi API
+app.post('/api/calls/sync-active', async (req, res) => {
+  const db = readDB();
+  const vapiKey = cleanToken(db.settings.vapiKey || process.env.VAPI_API_KEY || '');
+  let updatedCount = 0;
+
+  const activeCalls = db.callLogs.filter(
+    (c) => c.status === 'in-progress' || c.status === 'ringing' || c.status === 'queued'
+  );
+
+  if (vapiKey && activeCalls.length > 0) {
+    for (const call of activeCalls) {
+      if (call.vapiCallId && !call.vapiCallId.startsWith('vapi-')) {
+        try {
+          const vapiRes = await fetch(`https://api.vapi.ai/call/${call.vapiCallId}`, {
+            headers: {
+              Authorization: `Bearer ${vapiKey}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (vapiRes.ok) {
+            const vapiData = await vapiRes.json();
+            if (vapiData && vapiData.status) {
+              call.status = vapiData.status;
+              if (vapiData.endedAt) call.endedAt = vapiData.endedAt;
+              if (vapiData.duration) call.durationSeconds = Math.round(vapiData.duration);
+              if (vapiData.cost) call.cost = Number(vapiData.cost);
+              if (vapiData.endedReason) call.endReason = vapiData.endedReason;
+              if (vapiData.recordingUrl) call.recordingUrl = vapiData.recordingUrl;
+              if (vapiData.transcript) call.transcript = vapiData.transcript;
+              updatedCount++;
+
+              // If ended, update campaign contact as well
+              if (vapiData.status === 'ended' && call.campaignId) {
+                const camp = db.campaigns.find((c) => c.id === call.campaignId);
+                const contact = camp?.contacts.find((c) => c.callId === call.id || c.vapiCallId === call.vapiCallId);
+                if (contact && contact.status === 'calling') {
+                  contact.status = 'completed';
+                  contact.callOutcome = `Concluded (${call.durationSeconds}s)`;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`Could not sync call ${call.vapiCallId} from Vapi:`, err);
+        }
+      }
+    }
+    writeDB(db);
+  }
+
+  const currentActive = db.callLogs.filter(
+    (c) => c.status === 'in-progress' || c.status === 'ringing' || c.status === 'queued'
+  );
+
+  res.json({
+    success: true,
+    updatedCount,
+    activeCalls: currentActive,
+  });
+});
+
+// Explicitly end an active call
+app.post('/api/calls/:id/end', async (req, res) => {
+  const db = readDB();
+  const { id } = req.params;
+  const call = db.callLogs.find((c) => c.id === id || c.vapiCallId === id);
+
+  if (!call) return res.status(404).json({ error: 'Call log not found' });
+
+  call.status = 'ended';
+  call.endedAt = new Date().toISOString();
+  call.endReason = 'operator-ended-call';
+
+  // If associated with a campaign contact, complete it
+  if (call.campaignId) {
+    const camp = db.campaigns.find((c) => c.id === call.campaignId);
+    const contact = camp?.contacts.find((c) => c.callId === call.id || c.vapiCallId === call.vapiCallId || c.phone === call.customerPhone);
+    if (contact && contact.status === 'calling') {
+      contact.status = 'completed';
+      contact.callOutcome = 'Concluded by operator';
+      contact.callDurationSeconds = call.durationSeconds || 30;
+      if (camp) {
+        camp.completedCalls = (camp.completedCalls || 0) + 1;
+        camp.successfulCalls = (camp.successfulCalls || 0) + 1;
+      }
+    }
+  }
+
+  writeDB(db);
+  res.json({ success: true, call });
+});
+
+// Clear all stale or lingering inactive calls
+app.post('/api/calls/clear-stale', (req, res) => {
+  const db = readDB();
+  let clearedCount = 0;
+
+  for (const call of db.callLogs) {
+    if (call.status === 'in-progress' || call.status === 'ringing' || call.status === 'queued') {
+      call.status = 'ended';
+      call.endedAt = new Date().toISOString();
+      call.endReason = 'cleared-by-operator';
+      clearedCount++;
+    }
+  }
+
+  for (const camp of db.campaigns) {
+    for (const contact of camp.contacts) {
+      if (contact.status === 'calling') {
+        contact.status = 'pending';
+        delete contact.callId;
+        delete contact.vapiCallId;
+      }
+    }
+  }
+
+  writeDB(db);
+  res.json({ success: true, clearedCount, message: `Cleared ${clearedCount} inactive lines.` });
 });
 
 app.get('/api/analytics', (req, res) => {

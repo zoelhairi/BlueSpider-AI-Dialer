@@ -261,6 +261,140 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
     reader.readAsText(file);
   };
 
+  // Action Handlers
+  const handleDispatchBatch = async () => {
+    if (!currentCampaign) return;
+    setIsDispatchingBatch(true);
+    setFeedback(null);
+    try {
+      const res = await onStartCampaign(currentCampaign.id, settings?.vapiKey);
+      if (res?.requiresKey) {
+        setPendingAction({ type: 'dispatch_batch', campaignId: currentCampaign.id });
+        setIsApiKeyModalOpen(true);
+      } else if (res?.success) {
+        setFeedback({
+          type: 'success',
+          title: 'Batch Dispatched Successfully',
+          message: res.message || `Dispatched calls for campaign "${currentCampaign.name}".`,
+        });
+      } else {
+        setFeedback({
+          type: 'error',
+          title: 'Dispatch Issue',
+          message: res?.error || res?.message || 'Failed to dispatch calls. Verify your telephony configuration.',
+        });
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Call Engine Error',
+        message: err.message || 'Error occurred while contacting telephony engine.',
+      });
+    } finally {
+      setIsDispatchingBatch(false);
+    }
+  };
+
+  const handleCallContactDirect = async (contact: CampaignContact) => {
+    if (!currentCampaign) return;
+    setCallingContactId(contact.id);
+    setFeedback(null);
+    try {
+      if (onCallContact) {
+        const res = await onCallContact(currentCampaign.id, contact.id, settings?.vapiKey);
+        if (res?.requiresKey) {
+          setPendingAction({ type: 'call_contact', contact });
+          setIsApiKeyModalOpen(true);
+        } else if (res?.success) {
+          setFeedback({
+            type: 'success',
+            title: `Dialing ${contact.name}`,
+            message: res.message || `Outbound line opened to ${contact.phone}. Monitor audio stream in Live Monitor.`,
+          });
+        } else {
+          setFeedback({
+            type: 'error',
+            title: `Call Failed for ${contact.name}`,
+            message: res?.error || res?.message || 'Check telephony line assignment and balance.',
+          });
+        }
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Connection Error',
+        message: err.message || 'Network error triggering voice call.',
+      });
+    } finally {
+      setCallingContactId(null);
+    }
+  };
+
+  const handleQuickDialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickDialData.customerNumber) return;
+    setIsQuickDialing(true);
+    setFeedback(null);
+    try {
+      if (onDialSingle) {
+        const res = await onDialSingle({
+          customerNumber: quickDialData.customerNumber,
+          customerName: quickDialData.customerName,
+          assistantId: quickDialData.assistantId || assistants[0]?.id,
+          phoneNumberId: quickDialData.phoneNumberId || phoneNumbers[0]?.id,
+          vapiKey: settings?.vapiKey,
+        });
+
+        if (res?.requiresKey) {
+          setIsQuickDialOpen(false);
+          setIsApiKeyModalOpen(true);
+        } else if (res?.success) {
+          setFeedback({
+            type: 'success',
+            title: `Call Placed to ${quickDialData.customerNumber}`,
+            message: res.message || `Your phone is ringing! Check the Live Monitor for audio logs.`,
+          });
+          setIsQuickDialOpen(false);
+        } else {
+          setFeedback({
+            type: 'error',
+            title: 'Direct Dial Failed',
+            message: res?.error || res?.message || 'Check your telephony credentials or phone formatting.',
+          });
+        }
+      }
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        title: 'Dial Error',
+        message: err.message || 'Failed to place direct call.',
+      });
+    } finally {
+      setIsQuickDialing(false);
+    }
+  };
+
+  const handleSaveKeyAndExecute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputApiKey.trim() || !onSaveSettings) return;
+    setIsSavingKey(true);
+    try {
+      await onSaveSettings({ vapiKey: inputApiKey.trim() });
+      setIsApiKeyModalOpen(false);
+
+      if (pendingAction?.type === 'dispatch_batch') {
+        await onStartCampaign(pendingAction.campaignId, inputApiKey.trim());
+      } else if (pendingAction?.type === 'call_contact' && onCallContact && currentCampaign) {
+        await onCallContact(currentCampaign.id, pendingAction.contact.id, inputApiKey.trim());
+      }
+      setPendingAction(null);
+    } catch (err: any) {
+      alert(`Failed to save API credentials: ${err.message}`);
+    } finally {
+      setIsSavingKey(false);
+    }
+  };
+
   // Keep selectedCampaign in sync
   const currentCampaign = campaigns.find((c) => c.id === selectedCampaign?.id) || campaigns[0] || null;
 
@@ -269,23 +403,66 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-100">
-            Outbound & Inbound Campaigns Dialer
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <Radio className="w-5 h-5 text-sky-400" />
+            <span>Campaigns & Batch Voice Dispatcher</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
-            Automated batch dispatching with concurrent voice lines, retry schedules, and synchronized Vapi & Supabase queue records.
+            Automated outbound lines with concurrent capacity, intelligent retry schedules, and synchronized telemetry queue records.
           </p>
         </div>
-        {permissions.canCreateCampaign && (
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors cursor-pointer"
+            onClick={() => setIsQuickDialOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-sky-300 bg-sky-950/80 hover:bg-sky-900/80 border border-sky-800/80 rounded-lg shadow-sm transition-colors cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Campaign</span>
+            <PhoneCall className="w-3.5 h-3.5 text-sky-400" />
+            <span>Quick Direct Dial</span>
           </button>
-        )}
+          {permissions.canCreateCampaign && (
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-lg shadow-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Campaign</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Action Feedback Banner */}
+      {feedback && (
+        <div
+          className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+            feedback.type === 'success'
+              ? 'bg-emerald-950/70 border-emerald-800 text-emerald-200'
+              : feedback.type === 'error'
+              ? 'bg-rose-950/70 border-rose-800 text-rose-200'
+              : 'bg-sky-950/70 border-sky-800 text-sky-200'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            ) : feedback.type === 'error' ? (
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            ) : (
+              <Sparkles className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+            )}
+            <div>
+              <h4 className="text-xs font-bold">{feedback.title}</h4>
+              <p className="text-xs mt-0.5 opacity-90">{feedback.message}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-xs opacity-70 hover:opacity-100 p-1 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Campaigns Listing & Details Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -308,7 +485,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                   onClick={() => setSelectedCampaign(camp)}
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-slate-900 border-indigo-500/80 shadow-md shadow-indigo-950/40'
+                      ? 'bg-slate-900 border-sky-500/80 shadow-md shadow-sky-950/40'
                       : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
                   }`}
                 >
@@ -324,7 +501,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                         isRunning
                           ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
                           : camp.status === 'completed'
-                          ? 'text-indigo-400 bg-indigo-950/60 border-indigo-800'
+                          ? 'text-sky-400 bg-sky-950/60 border-sky-800'
                           : 'text-amber-400 bg-amber-950/60 border-amber-800'
                       }`}
                     >
@@ -345,7 +522,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                       <div
                         style={{ width: `${progress}%` }}
-                        className="bg-indigo-500 h-full rounded-full transition-all"
+                        className="bg-sky-500 h-full rounded-full transition-all"
                       ></div>
                     </div>
                   </div>
@@ -366,7 +543,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     <h2 className="text-base font-bold text-slate-100">
                       {currentCampaign.name}
                     </h2>
-                    <span className="text-[10px] font-mono text-indigo-400 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-900/60">
+                    <span className="text-[10px] font-mono text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded border border-sky-900/60">
                       {currentCampaign.type.toUpperCase()}
                     </span>
                   </div>
@@ -387,11 +564,21 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     </button>
                   ) : (
                     <button
-                      onClick={() => onStartCampaign(currentCampaign.id)}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm cursor-pointer transition-colors"
+                      onClick={handleDispatchBatch}
+                      disabled={isDispatchingBatch}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow-sm cursor-pointer transition-colors disabled:opacity-50"
                     >
-                      <Play className="w-3.5 h-3.5" />
-                      <span>Dispatch Batch ({currentCampaign.concurrentCalls} Lines)</span>
+                      {isDispatchingBatch ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Dispatching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Dispatch Batch ({currentCampaign.concurrentCalls} Lines)</span>
+                        </>
+                      )}
                     </button>
                   )}
 
@@ -444,7 +631,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
 
             {/* Contacts Queue Table */}
             <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-xl space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-200">
                     Target Contact Queue ({currentCampaign.contacts.length})
@@ -455,7 +642,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                 </div>
                 <button
                   onClick={onNavigateToMonitor}
-                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 font-medium cursor-pointer self-start sm:self-auto"
                 >
                   <span>Open Live Monitor</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -471,16 +658,16 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead>
                       <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                        <th className="py-2 px-3">Lead Contact</th>
-                        <th className="py-2 px-3">Phone</th>
-                        <th className="py-2 px-3">Company</th>
-                        <th className="py-2 px-3">Dialer Status</th>
-                        <th className="py-2 px-3">Duration</th>
-                        <th className="py-2 px-3">Outcome</th>
-                        <th className="py-2 px-3 text-right">Simulate</th>
+                        <th className="py-2.5 px-3">Lead Contact</th>
+                        <th className="py-2.5 px-3">Phone</th>
+                        <th className="py-2.5 px-3">Company</th>
+                        <th className="py-2.5 px-3">Dialer Status</th>
+                        <th className="py-2.5 px-3">Duration</th>
+                        <th className="py-2.5 px-3">Outcome</th>
+                        <th className="py-2.5 px-3 text-right">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -489,7 +676,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                           <td className="py-2.5 px-3 text-slate-200 font-sans font-medium">
                             {contact.name}
                           </td>
-                          <td className="py-2.5 px-3 text-indigo-300 font-semibold tabular-nums">
+                          <td className="py-2.5 px-3 text-sky-300 font-semibold tabular-nums">
                             {contact.phone}
                           </td>
                           <td className="py-2.5 px-3 text-slate-400 font-sans truncate max-w-[120px]">
@@ -499,7 +686,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                             <span
                               className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded ${
                                 contact.status === 'calling'
-                                  ? 'text-indigo-400 bg-indigo-950 animate-pulse font-bold'
+                                  ? 'text-sky-400 bg-sky-950 animate-pulse font-bold'
                                   : contact.status === 'completed'
                                   ? 'text-emerald-400 bg-emerald-950/70'
                                   : contact.status === 'voicemail'
@@ -519,7 +706,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                             {contact.callOutcome || 'Queued for dispatch'}
                           </td>
                           <td className="py-2.5 px-3 text-right">
-                            {contact.status === 'calling' && (
+                            {contact.status === 'calling' ? (
                               <button
                                 onClick={() =>
                                   onCompleteContactCall(
@@ -530,9 +717,27 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                                     125
                                   )
                                 }
-                                className="px-2 py-0.5 text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 rounded hover:bg-emerald-900 cursor-pointer"
+                                className="px-2 py-1 text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 rounded hover:bg-emerald-900 cursor-pointer"
                               >
                                 Wrap Up
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleCallContactDirect(contact)}
+                                disabled={callingContactId === contact.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] bg-sky-950/80 hover:bg-sky-900/80 text-sky-300 border border-sky-800 rounded cursor-pointer transition-colors disabled:opacity-50"
+                              >
+                                {callingContactId === contact.id ? (
+                                  <>
+                                    <RefreshCw className="w-3 h-3 animate-spin text-sky-400" />
+                                    <span>Dialing...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Phone className="w-3 h-3 text-sky-400" />
+                                    <span>Call Now</span>
+                                  </>
+                                )}
                               </button>
                             )}
                           </td>
@@ -546,6 +751,164 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
           </div>
         ) : null}
       </div>
+
+      {/* Quick Direct Dial Modal */}
+      {isQuickDialOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <PhoneCall className="w-4 h-4 text-sky-400" />
+                <h3 className="text-sm font-bold text-slate-100">Direct Outbound Dial</h3>
+              </div>
+              <button
+                onClick={() => setIsQuickDialOpen(false)}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickDialSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Recipient Phone Number (with Country Code) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="+628999956403 or +14155550192"
+                  value={quickDialData.customerNumber}
+                  onChange={(e) => setQuickDialData({ ...quickDialData, customerNumber: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Recipient Name</label>
+                <input
+                  type="text"
+                  placeholder="Zoel"
+                  value={quickDialData.customerName}
+                  onChange={(e) => setQuickDialData({ ...quickDialData, customerName: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Voice Assistant</label>
+                <select
+                  value={quickDialData.assistantId}
+                  onChange={(e) => setQuickDialData({ ...quickDialData, assistantId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500"
+                >
+                  {assistants.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Calling From (Trunk Line)</label>
+                <select
+                  value={quickDialData.phoneNumberId}
+                  onChange={(e) => setQuickDialData({ ...quickDialData, phoneNumberId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                >
+                  {phoneNumbers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.number} ({p.name})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickDialOpen(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isQuickDialing}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg shadow-sm disabled:opacity-50"
+                >
+                  {isQuickDialing ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Placing Call...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Dial Now</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Prompt Modal */}
+      {isApiKeyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-slate-100">Private API Key Required</h3>
+              </div>
+              <button
+                onClick={() => setIsApiKeyModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              To place real outbound phone calls that ring actual phone devices, provide your Private API Key:
+            </p>
+
+            <form onSubmit={handleSaveKeyAndExecute} className="space-y-3 text-xs">
+              <div>
+                <input
+                  type="password"
+                  required
+                  placeholder="Paste your Private API Key..."
+                  value={inputApiKey}
+                  onChange={(e) => setInputApiKey(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsApiKeyModalOpen(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingKey}
+                  className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg disabled:opacity-50"
+                >
+                  {isSavingKey ? 'Saving & Dialing...' : 'Save & Place Call'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Create Campaign Modal */}
       {isCreateModalOpen && (
@@ -580,7 +943,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g. Q4 Cloud Infrastructure Outreach"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div>
@@ -590,7 +953,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500"
                   >
                     <option value="outbound">Outbound Dialing Campaign</option>
                     <option value="inbound">Inbound Queue Router</option>
@@ -607,7 +970,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Outline the qualification goals and target audience profile..."
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
                 />
               </div>
 
@@ -621,7 +984,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     required
                     value={formData.phoneNumberId}
                     onChange={(e) => setFormData({ ...formData, phoneNumberId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 font-mono"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 font-mono focus:outline-none focus:border-sky-500"
                   >
                     {phoneNumbers.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -638,7 +1001,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     required
                     value={formData.assistantId}
                     onChange={(e) => setFormData({ ...formData, assistantId: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500"
                   >
                     {assistants.map((a) => (
                       <option key={a.id} value={a.id}>
@@ -662,7 +1025,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     step="1"
                     value={formData.concurrentCalls || 3}
                     onChange={(e) => setFormData({ ...formData, concurrentCalls: parseInt(e.target.value, 10) })}
-                    className="w-full accent-indigo-500 cursor-pointer"
+                    className="w-full accent-sky-500 cursor-pointer"
                   />
                 </div>
                 <div>
@@ -672,7 +1035,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                   <select
                     value={formData.retryAttempts}
                     onChange={(e) => setFormData({ ...formData, retryAttempts: parseInt(e.target.value, 10) })}
-                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded text-slate-200 font-mono"
+                    className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded text-slate-200 font-mono focus:outline-none focus:border-sky-500"
                   >
                     <option value="1">1 Retry Attempt</option>
                     <option value="2">2 Retry Attempts</option>
@@ -691,7 +1054,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     <button
                       type="button"
                       onClick={handleLoadSampleLeads}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 rounded text-[11px] cursor-pointer"
+                      className="flex items-center gap-1 px-2.5 py-1 bg-sky-950 text-sky-300 hover:bg-sky-900 border border-sky-800 rounded text-[11px] cursor-pointer"
                     >
                       <Sparkles className="w-3 h-3" />
                       <span>Load 4 Sample Leads</span>
@@ -716,28 +1079,28 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                     placeholder="Name"
                     value={manualContact.name}
                     onChange={(e) => setManualContact({ ...manualContact, name: e.target.value })}
-                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs"
+                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs focus:outline-none focus:border-sky-500"
                   />
                   <input
                     type="text"
                     placeholder="Phone (+1...)"
                     value={manualContact.phone}
                     onChange={(e) => setManualContact({ ...manualContact, phone: e.target.value })}
-                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 font-mono text-xs"
+                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 font-mono text-xs focus:outline-none focus:border-sky-500"
                   />
                   <input
                     type="email"
                     placeholder="Email"
                     value={manualContact.email}
                     onChange={(e) => setManualContact({ ...manualContact, email: e.target.value })}
-                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs"
+                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs focus:outline-none focus:border-sky-500"
                   />
                   <input
                     type="text"
                     placeholder="Company"
                     value={manualContact.company}
                     onChange={(e) => setManualContact({ ...manualContact, company: e.target.value })}
-                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs"
+                    className="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded text-slate-100 text-xs focus:outline-none focus:border-sky-500"
                   />
                   <button
                     type="button"
@@ -760,7 +1123,7 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg cursor-pointer shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg cursor-pointer shadow-sm disabled:opacity-50"
                 >
                   {isSubmitting ? 'Creating...' : 'Create Campaign'}
                 </button>
